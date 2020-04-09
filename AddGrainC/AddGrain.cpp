@@ -58,6 +58,7 @@ class AddGrain : public GenericVideoFilter {
   float _var, _uvar, _hcorr, _vcorr;
   int _seed;
   bool _constant;
+  bool _simd;
 
   void setRand(int* plane, int* noiseOffs, const int frameNumber);
   void updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
@@ -69,7 +70,7 @@ class AddGrain : public GenericVideoFilter {
   void updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int);
 
 public:
-  AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, IScriptEnvironment* env);
+  AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, bool simd, IScriptEnvironment* env);
   PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
   int __stdcall SetCacheHints(int cachehints, int frame_range)
   {
@@ -264,8 +265,8 @@ void AddGrain::updateFrame(float* VS_RESTRICT dstp, const int width, const int h
   }
 }
 
-AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, IScriptEnvironment* env)
-  : GenericVideoFilter(_child), _var(var), _uvar(uvar), _hcorr(hcorr), _vcorr(vcorr), _seed(seed), _constant(constant)
+AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, bool simd, IScriptEnvironment* env)
+  : GenericVideoFilter(_child), _var(var), _uvar(uvar), _hcorr(hcorr), _vcorr(vcorr), _seed(seed), _constant(constant), _simd(simd)
 {
   bool iset = false;
   float gset;
@@ -372,8 +373,8 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
 
   const int bits_per_pixel = vi.BitsPerComponent();
 
-  const bool sse2 = env->GetCPUFlags() & CPUF_SSE2;
-  const bool sse41 = env->GetCPUFlags() & CPUF_SSE4_1;
+  const bool sse2 = _simd && !!(env->GetCPUFlags() & CPUF_SSE2);
+  const bool sse41 = _simd && !!(env->GetCPUFlags() & CPUF_SSE4_1);
 
   if (_var > 0.f)
   {
@@ -467,20 +468,41 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
 
 AVSValue __cdecl Create_AddGrain(AVSValue args, void* user_data, IScriptEnvironment* env)
 {
-  if ((args[3].AsFloat(0)) < 0.f || (args[3].AsFloat(0)) > 1.f || (args[4].AsFloat(0)) < 0.f || (args[4].AsFloat(0)) > 1.f) {
+  /* VapourSynth order
+  const float var = args[1].AsFloatf(1);
+  const float uvar = args[2].AsFloatf(0);
+  const float hcorr = args[3].AsFloatf(0);
+  const float vcorr = args[4].AsFloatf(0);
+  */
+  // original order, different from AddGrainC
+  const float var = args[1].AsFloatf(1);
+  const float uvar = args[4].AsFloatf(0);
+  const float hcorr = args[2].AsFloatf(0);
+  const float vcorr = args[3].AsFloatf(0);
+
+  const bool sse2 = args[7].AsBool(true);
+
+  if ((hcorr) < 0.f || (hcorr) > 1.f || (vcorr) < 0.f || (vcorr) > 1.f) {
     env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), args[1].AsFloatf(1), args[2].AsFloatf(0), args[3].AsFloatf(0), args[4].AsFloatf(0), args[5].AsInt(-1), args[6].AsBool(false), env);
+  return new AddGrain(args[0].AsClip(), var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
 }
 
 AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnvironment* env)
 {
-  if ((args[3].AsFloat(0)) < 0.f || (args[3].AsFloat(0)) > 1.f || (args[4].AsFloat(0)) < 0.f || (args[4].AsFloat(0)) > 1.f) {
-    env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
+  const float var = args[1].AsFloatf(1);
+  const float uvar = args[2].AsFloatf(0);
+  const float hcorr = args[3].AsFloatf(0);
+  const float vcorr = args[4].AsFloatf(0);
+
+  const bool sse2 = args[7].AsBool(true);
+
+  if ((hcorr) < 0.f || (hcorr) > 1.f || (vcorr) < 0.f || (vcorr) > 1.f) {
+    env->ThrowError("AddGrainC: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), args[1].AsFloatf(1), args[2].AsFloatf(0), args[3].AsFloatf(0), args[4].AsFloatf(0), args[5].AsInt(-1), args[6].AsBool(false), env);
+  return new AddGrain(args[0].AsClip(), var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
 }
 
 const AVS_Linkage* AVS_linkage;
@@ -489,9 +511,8 @@ extern "C" __declspec(dllexport)
 const char* __stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Linkage* const vectors)
 {
   AVS_linkage = vectors;
-
-  env->AddFunction("AddGrain", "c[var]f[uvar]f[hcorr]f[vcorr]f[seed]i[constant]b", Create_AddGrain, NULL);
-  env->AddFunction("AddGrainC", "c[var]f[uvar]f[hcorr]f[vcorr]f[seed]i[constant]b", Create_AddGrainC, NULL);
+  env->AddFunction("AddGrain", "c[var]f[hcorr]f[vcorr]f[uvar]f[seed]i[constant]b[sse2]b", Create_AddGrain, NULL);
+  env->AddFunction("AddGrainC", "c[var]f[uvar]f[hcorr]f[vcorr]f[seed]i[constant]b[sse2]b", Create_AddGrainC, NULL);
   return "`AddGrainC' Add some correlated color gaussian noise";
 
 }
