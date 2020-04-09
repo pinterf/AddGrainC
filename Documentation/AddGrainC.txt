@@ -1,0 +1,103 @@
+//  AddGrainC - Random noise film grain generator for Avisynth 2.5
+//	Copyright (C) 2003 Tom Barry
+//		trbarry@trbarry.com
+//	modified by Foxyshadis
+//		foxyshadis@hotmail.com
+//	modified by Firesledge
+//		http://ldesoras.free.fr
+//	modified by LaTo INV.
+//		http://forum.doom9.org/member.php?u=131032
+//	This program is free software; you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation; either version 2 of the License, or
+//	(at your option) any later version.
+//
+//	This program is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//
+//	You should have received a copy of the GNU General Public License
+//	along with this program; if not, write to the Free Software
+//	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+Also, this program is "Philanthropy-Ware".  That is, if you like it and feel
+the need to reward or inspire the author then please feel free (but not obligated) 
+to consider joining or donating to the Electronic Frontier Foundation. This will 
+help keep cyber space free of barbed wire and bullsh*t.  
+
+See their web page at www.eff.org
+
+***************
+
+
+AddGrain generates film like grain or other effects (like rain) by adding
+random noise to a video clip.  This noise may optionally be horizontally 
+or vertically correlated to cause streaking.
+
+
+	AddGrainC ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
+	AddGrain  ( float var, float hcorr, float vcorr, float uvar, int seed, bool constant )
+
+
+Requirements
+==================
+
+* Avisynth 2.5+
+* YV12, YUY2, RGB
+* MMX cpu or SSE2 cpu
+
+
+Parameters
+==================
+
+var (1.0), uvar (0.0)
+	The standard deviation (strength) of the luma and chroma noise, 0 is disabled.
+	uvar does nothing in RGB mode.
+
+hcorr (0.0), vcorr (0.0)
+	Horizontal and vertical correlation, which causes a nifty streaking effect.
+	Range 0.0-1.0
+
+seed (-1)
+	Specifies a repeatable grain sequence. Set to at least 0 to use.
+
+constant (false)
+	Specifies a constant grain pattern on every frame.
+
+sse2 (true)
+	Enable sse2 optimization if available. 1.5x faster than mmx.
+
+
+AddGrain alias is left to retain compatibility with existing scripts using it.
+
+The correlation factors are actually just implemented as exponential smoothing
+which give a weird side affect that I did not attempt to adjust.  But this means
+that as you increase either corr factor you will have to also increase the stddev
+(grain amount) in order to get the same visible amount of grain, since it is being 
+smooth out a bit.
+
+Increase both corr factors can somewhat give clumps, or larger grain size. 
+
+And there is an interesting effect with, say, AddGrain(800,0,.9) or any huge amount 
+of strongly vertical grain.  It can make a scene look like it is raining.
+
+
+Version History
+==================
+1.0     2003/06/18   Tom Barry    Initial Release
+1.1     2006/06/01   Foxyshadis   Chroma grain + constant seed
+1.2     2006/06/06   Foxyshadis   Supports YUY2, RGB. Fix cache mess.
+1.3     2006/06/10   Foxyshadis   Crashfix, noisegen optimization
+1.4     2006/08/11   Foxyshadis   Constant replaces seed, seed repeatable
+1.5     2010/05/07   Foxyshadis   Limit the initial seed generation to fix memory issues.
+1.5.1   2010/05/13   Firesledge   The source code compiles on Visual C++ versions older than 2008
+1.5.2   2011/10/26   Firesledge   Removed the SSE2 requirement.
+1.5.3   2011/10/26   Firesledge   Fixed coloring and bluring in RGB24 mode.
+1.5.4   2011/10/27   Firesledge   Fixed bad pixels on the last line in YV12 mode when constant=true,
+                                  fixed potential problems with frame width > 4096 pixels
+                                  and fixed several other minor things.
+1.6.0   2011/10/28   LaTo INV.    Added SSE2 code (50% faster than MMX).
+1.6.1   2011/10/29   LaTo INV.    Automatic switch to MMX if SSE2 is not supported by the CPU.
+1.7.0   2012/08/16   Firesledge   Supports Y8, YV16, YV24 and YV411 colorspaces.
+1.7.1   2013/11/25   Firesledge   64-bit version.
