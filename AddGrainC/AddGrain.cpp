@@ -28,10 +28,10 @@ class AddGrain : public GenericVideoFilter {
   int _seed;
 
   void setRand(int* plane, int* noiseOffs, const int frameNumber);
-  template<typename T1, typename T2 = void>
-  void updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs);
+  template<typename T1>
+  void updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   template<>
-  void updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs);
+  void updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int);
 
 public:
   AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, IScriptEnvironment* env);
@@ -118,32 +118,27 @@ void AddGrain::setRand(int* plane, int* noiseOffs, const int frameNumber) {
   assert(*noiseOffs < nSize[*plane]); // minimal check
 }
 
-template<typename T1, typename T2>
-void AddGrain::updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs) {
-  const int shift1 = (sizeof(T1) == sizeof(uint8_t)) ? 0 : 16 - vi.BitsPerComponent();
-  constexpr int shift2 = (sizeof(T1) == sizeof(uint8_t)) ? 8 : 0;
-  constexpr int lower = std::numeric_limits<T2>::min();
-  constexpr int upper = std::numeric_limits<T2>::max();
-
+template<typename T1>
+void AddGrain::updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel) {
+  const int upper = 1 << bits_per_pixel;
   const int16_t* pNW = pN[noisePlane].data() + noiseOffs;
-  assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
+
+  // assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
-      T2 val = (dstp[x] << shift1) ^ lower;
-      const T2 nz = pNW[x] >> shift2;
-      val = std::min(std::max(val + nz, lower), upper);
-      dstp[x] = val ^ lower;
-      dstp[x] >>= shift1;
+      if constexpr (sizeof(T1) == 1)
+        dstp[x] = (T1)(std::min(std::max(dstp[x] + pNW[x], 0), 255));
+      else
+        dstp[x] = (T1)(std::min(std::max(dstp[x] + pNW[x], 0), upper));
     }
-
     dstp += stride;
     pNW += nStride[noisePlane];
   }
 }
 
 template<>
-void AddGrain::updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs) {
+void AddGrain::updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int) {
   const float* pNW = pNF[noisePlane].data() + noiseOffs;
   assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
@@ -193,6 +188,9 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
   std::vector<float> lastLine(nStride[0]); // assume plane 0 is the widest one
   const float mean = 0.f;
 
+  const int bits_per_pixel = vi.BitsPerComponent();
+  const float noise_scale = bits_per_pixel == 32  ? 1/255.f : (float)(1 << (bits_per_pixel - 8));
+
   for (int plane = 0; plane < planesNoise; plane++)
   {
     int h = static_cast<int>(std::ceil(nHeight[plane] * nRep[plane]));
@@ -225,7 +223,7 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
           r = lastLine[x] * _vcorr + r * (1.f - _vcorr); // vert corr
           lastLine[x] = r;
 
-          *pNW++ = static_cast<int16_t>(std::round(r * 256.f)); // set noise block
+          *pNW++ = static_cast<int16_t>(std::round(r * noise_scale)); // set noise block
         }
       }
       else {
@@ -241,7 +239,7 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
           r = lastLine[x] * _vcorr + r * (1.f - _vcorr); // vert corr
           lastLine[x] = r;
 
-          *pNW++ = r / 255.f; // set noise block
+          *pNW++ = r * noise_scale; // set noise block
         }
       }
     }
@@ -259,6 +257,8 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
   int plane;
   int noiseOffs = 0;
 
+  const int bits_per_pixel = vi.BitsPerComponent();
+
   if (_var > 0.f)
   {
     const int widthY = src->GetRowSize(PLANAR_Y) / vi.ComponentSize();
@@ -272,11 +272,11 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1)
-      updateFrame<uint8_t, int8_t>(dstpY, widthY, heightY, strideY, noisePlane, noiseOffs);
+      updateFrame<uint8_t>(dstpY, widthY, heightY, strideY, noisePlane, noiseOffs, bits_per_pixel);
     else if (vi.ComponentSize() == 2)
-      updateFrame<uint16_t, int16_t>(reinterpret_cast<uint16_t*>(dstpY), widthY, heightY, strideY / 2, noisePlane, noiseOffs);
+      updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpY), widthY, heightY, strideY / 2, noisePlane, noiseOffs, bits_per_pixel);
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs);
+      updateFrame<float>(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
   if (_uvar > 0.f)
@@ -293,11 +293,11 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1)
-      updateFrame<uint8_t, int8_t>(dstpU, widthUV, heightUV, strideUV, noisePlane, noiseOffs);
+      updateFrame<uint8_t>(dstpU, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
     else if (vi.ComponentSize() == 2)
-      updateFrame<uint16_t, int16_t>(reinterpret_cast<uint16_t*>(dstpU), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs);
+      updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpU), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs);
+      updateFrame<float>(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
 
     plane = 2;
     noisePlane = (vi.IsRGB()) ? 0 : plane;
@@ -305,11 +305,11 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1)
-      updateFrame<uint8_t, int8_t>(dstpV, widthUV, heightUV, strideUV, noisePlane, noiseOffs);
+      updateFrame<uint8_t>(dstpV, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
     else if (vi.ComponentSize() == 2)
-      updateFrame<uint16_t, int16_t>(reinterpret_cast<uint16_t*>(dstpV), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs);
+      updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpV), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs);
+      updateFrame<float>(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
   return src;
