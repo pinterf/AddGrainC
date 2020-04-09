@@ -168,8 +168,8 @@ void AddGrain::updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, co
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x += 16) {
       auto src = _mm_load_si128(reinterpret_cast<const __m128i*>(dstp + x));
-      auto noise_lo = _mm_load_si128(reinterpret_cast<const __m128i*>(pNW + x)); // signed 16
-      auto noise_hi = _mm_load_si128(reinterpret_cast<const __m128i*>(pNW + x + 8));
+      auto noise_lo = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pNW + x)); // signed 16
+      auto noise_hi = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pNW + x + 8));
       auto noise = _mm_packs_epi16(noise_lo, noise_hi);
       auto src_signed = _mm_add_epi8(src, sign_mask);
       auto sum = _mm_adds_epi8(noise, src_signed);
@@ -198,7 +198,7 @@ void AddGrain::updateFrame_16_SSE4(uint16_t* VS_RESTRICT dstp, const int width, 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width * sizeof(uint16_t); x += 16) {
       auto src = _mm_load_si128(reinterpret_cast<const __m128i*>((uint8_t *)dstp + x));
-      auto noise = _mm_load_si128(reinterpret_cast<const __m128i*>(pNW + x)); // signed 16
+      auto noise = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pNW + x)); // signed 16
       auto src_signed = _mm_add_epi16(src, sign_mask);
       auto sum = _mm_adds_epi16(noise, src_signed);
       sum = _mm_add_epi16(sum, sign_mask);
@@ -222,7 +222,7 @@ void AddGrain::updateFrame_32_SSE2(float* VS_RESTRICT dstp, const int width, con
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width * sizeof(float); x += 16) {
       auto src = _mm_load_ps(reinterpret_cast<const float*>((uint8_t*)dstp + x));
-      auto noise = _mm_load_ps(reinterpret_cast<const float*>(pNW + x)); // signed 16
+      auto noise = _mm_loadu_ps(reinterpret_cast<const float*>(pNW + x)); // signed 16
       auto result = _mm_add_ps(noise, src);
       _mm_store_ps(reinterpret_cast<float *>((uint8_t*)dstp + x), result);
     }
