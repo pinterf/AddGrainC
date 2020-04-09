@@ -1,72 +1,40 @@
-//  AddGrainC - Random noise film grain generator for Avisynth 2.5
-//	Copyright (C) 2003 Tom Barry
-//		trbarry@trbarry.com
-//	modified by Foxyshadis
-//		foxyshadis@hotmail.com
-//	modified by Firesledge
-//		http://ldesoras.free.fr
-//	modified by LaTo INV.
-//		http://forum.doom9.org/member.php?u=131032
-//	This program is free software; you can redistribute it and/or modify
-//	it under the terms of the GNU General Public License as published by
-//	the Free Software Foundation; either version 2 of the License, or
-//	(at your option) any later version.
-//
-//	This program is distributed in the hope that it will be useful,
-//	but WITHOUT ANY WARRANTY; without even the implied warranty of
-//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//	GNU General Public License for more details.
-//
-//	You should have received a copy of the GNU General Public License
-//	along with this program; if not, write to the Free Software
-//	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-
-Also, this program is "Philanthropy-Ware".  That is, if you like it and feel
-the need to reward or inspire the author then please feel free (but not obligated) 
-to consider joining or donating to the Electronic Frontier Foundation. This will 
-help keep cyber space free of barbed wire and bullsh*t.  
-
-See their web page at www.eff.org
-
-***************
-
+** AddGrainC **
+Random noise film grain generator for Avisynth+ and Avisynth 2.6
+Copyright (C) 2003 Tom Barry et al
 
 AddGrain generates film like grain or other effects (like rain) by adding
 random noise to a video clip.  This noise may optionally be horizontally 
 or vertically correlated to cause streaking.
 
 
-	AddGrainC ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
-	AddGrain  ( float var, float hcorr, float vcorr, float uvar, int seed, bool constant )
+  AddGrainC ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
+  AddGrain  ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
 
+Forum: https://forum.doom9.org/showthread.php?t=111849
 
 Requirements
 ==================
 
-* Avisynth 2.5+
-* YV12, YUY2, RGB
-* MMX cpu or SSE2 cpu
-
+* AviSynth+ or AviSynth 2.6
+* Y, planar YUV(A), planar RGB(A) video formats
 
 Parameters
 ==================
 
 var (1.0), uvar (0.0)
-	The standard deviation (strength) of the luma and chroma noise, 0 is disabled.
-	uvar does nothing in RGB mode.
+  The standard deviation (strength) of the luma and chroma noise, 0 is disabled.
+  uvar does nothing in Y-only or RGB mode.
 
 hcorr (0.0), vcorr (0.0)
-	Horizontal and vertical correlation, which causes a nifty streaking effect.
-	Range 0.0-1.0
+  Horizontal and vertical correlation, which causes a nifty streaking effect.
+  Range 0.0-1.0
 
 seed (-1)
-	Specifies a repeatable grain sequence. Set to at least 0 to use.
+  Specifies a repeatable grain sequence. Set to at least 0 to use.
 
 constant (false)
-	Specifies a constant grain pattern on every frame.
+  Specifies a constant grain pattern on every frame.
 
-sse2 (true)
-	Enable sse2 optimization if available. 1.5x faster than mmx.
 
 
 AddGrain alias is left to retain compatibility with existing scripts using it.
@@ -101,3 +69,40 @@ Version History
 1.6.1   2011/10/29   LaTo INV.    Automatic switch to MMX if SSE2 is not supported by the CPU.
 1.7.0   2012/08/16   Firesledge   Supports Y8, YV16, YV24 and YV411 colorspaces.
 1.7.1   2013/11/25   Firesledge   64-bit version.
+?       2014-2018    HolyWu       VapourSynth port: https://github.com/HomeOfVapourSynthEvolution/VapourSynth-AddGrain
+?       2019         StvG         Backport to Avisynth+
+                                  Changes to 1.7.1:
+                                  Support Avisynth+ high bit depth
+                                  Register Avisynth+ MT mode as MT_MULTI_INSTANCE
+                                  Addgrain parameter order made similar to AddGrainC: 
+                                     var, uvar, hcorr, vcorr, seed, constant (was: var, hcorr, vcorr, uvar, seed, constant)
+                                  Removed bool "sse2" parameter
+                                  Name is Addgrain
+                                  Removed SIMD optimization
+1.8     2020/04/09   pinterf      Plugin name changed back to AddGrainC
+                                  Fix output darkening (regression in VS port)
+                                  Add back documentation, credits
+                                  Add back SIMD optimization (SSE2, SSE4)
+                                  Add back version resource
+
+Authors
+=======
+Copyright (C) 2003 Tom Barry et al
+  trbarry@trbarry.com
+modified by Foxyshadis
+  foxyshadis@hotmail.com
+modified by Firesledge
+  http://ldesoras.free.fr
+modified by LaTo INV.
+  http://forum.doom9.org/member.php?u=131032
+modified by HolyWu
+modified by StvG
+modified by pinterf
+
+Also, this program is "Philanthropy-Ware".  That is, if you like it and feel
+the need to reward or inspire the author then please feel free (but not obligated) 
+to consider joining or donating to the Electronic Frontier Foundation. This will 
+help keep cyber space free of barbed wire and bullsh*t.  
+
+See their web page at www.eff.org
+

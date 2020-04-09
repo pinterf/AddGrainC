@@ -1,28 +1,28 @@
-setmemorymax(1024)
-#loadplugin(".\AddGrainC.dll")
-#loadplugin(".\Debug\AddGrainC.dll")
-#loadplugin(".\Release\AddGrainC.dll")
-#loadplugin(".\RelSym\AddGrainC.dll")
+ColorBars(width=640, height=100, pixel_type="yuv420p8")
+orig = last
 
-w = 380
-h = 180
+bits = 32 # set to bit depth to test
+c1 = orig.ConvertBits(bits)
+c1 = c1.addgrain_addgrain(var = 100)
+# uncomment for speed test
+#return c1
+#__END__
 
-yv12 = blankclip(pixel_type="yv12" ,color=$808080,width=w,height=h,length=10).loop(1000000)
-yuy2 = blankclip(pixel_type="yuy2" ,color=$808080,width=w,height=h,length=10).loop(1000000)
-rgb =  blankclip(pixel_type="rgb24",color=$808080,width=w,height=h,length=10).loop(1000000)
-rgba = blankclip(pixel_type="rgb32",color=$808080,width=w,height=h,length=10).loop(1000000)
+c2 = orig.addgrainc_addgrain(var = 100)
 
-stackhorizontal ( \
-	stackvertical(yv12.addgrainc(200,200).ConvertToRGB32(), \
-		yuy2.addgrainc(200,200,seed=12).ConvertToRGB32(), \
-		yuy2.addgrainc(200,200).ConvertToRGB32(), \
-		rgb.addgrainc(200,200).ConvertToRGB32(), \
-		rgba.addgrainc(200,200).ConvertToRGB32() \
-	), stackvertical(yv12.addgrainc(200,200,constant=true).ConvertToRGB32(), \
-		yuy2.addgrainc(200,200,seed=12,constant=true).ConvertToRGB32(), \
-		yuy2.addgrainc(200,200,constant=true).ConvertToRGB32(), \
-		rgb.addgrainc(200,200,constant=true).ConvertToRGB32(), \
-		rgba.addgrainc(200,200,constant=true).ConvertToRGB32() \
-	) \
-)
+c0 = orig.ScriptClip("""SubTitle("original AverageLuma =" + String(AverageLuma() / ( Bitshl(1, BitsPerComponent() - 8))))""")
+IF(c1.IsVideoFloat()) {
+  c1 =   c1.ScriptClip("""SubTitle("addgrain AverageLuma =" + String(AverageLuma() * 255.0 ))""")
+} else {
+  c1 =   c1.ScriptClip("""SubTitle("addgrain AverageLuma =" + String(AverageLuma() / ( Bitshl(1, BitsPerComponent() - 8))))""")
+}
+c2 =   c2.ScriptClip("""SubTitle("addgrainc AverageLuma=" + String(AverageLuma() / ( Bitshl(1, BitsPerComponent() - 8))))""")
+
+StackVertical(c0,c1.ConvertBits(8), c2.ConvertBits(8), Diff(c1, c2))
+return last
+
+Function Diff(clip src1, clip src2)
+{
+  return Subtract(src1.ConvertBits(8),src2.ConvertBits(8)).Levels(120, 1, 255-120, 0, 255, coring=false)
+}
 
