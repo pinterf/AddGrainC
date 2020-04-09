@@ -1,3 +1,33 @@
+// Copyright (c) 2002 Tom Barry.  All rights reserved.
+//		trbarry@trbarry.com
+//	modified by Foxyshadis
+//		foxyshadis@hotmail.com
+//	modified by Firesledge
+//		http://ldesoras.free.fr
+//	modified by LaTo INV.
+//		http://forum.doom9.org/member.php?u=131032
+// Additional modifications by HolyWu, StvG, pinterf
+//
+/////////////////////////////////////////////////////////////////////////////
+//
+//	This file is subject to the terms of the GNU General Public License as
+//	published by the Free Software Foundation.  A copy of this license is
+//	included with this software distribution in the file COPYING.  If you
+//	do not have a copy, you may obtain a copy by writing to the Free
+//	Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+//
+//	This software is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details
+//  
+//  Also, this program is "Philanthropy-Ware".  That is, if you like it and 
+//  feel the need to reward or inspire the author then please feel free (but
+//  not obligated) to consider joining or donating to the Electronic Frontier
+//  Foundation. This will help keep cyber space free of barbed wire and bullsh*t.  
+//
+/////////////////////////////////////////////////////////////////////////////
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
