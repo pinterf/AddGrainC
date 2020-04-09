@@ -20,7 +20,6 @@ static constexpr int MAXP = 2;
 static constexpr int OFFSET_FAKEPLANE = 32;
 
 class AddGrain : public GenericVideoFilter {
-  bool _constant;
   int64_t idum;
   int nStride[MAXP], nHeight[MAXP], nSize[MAXP], storedFrames;
   std::vector<uint8_t> pNoiseSeeds;
@@ -28,10 +27,12 @@ class AddGrain : public GenericVideoFilter {
   std::vector<float> pNF[MAXP];
   float _var, _uvar, _hcorr, _vcorr;
   int _seed;
+  bool _constant;
 
   void setRand(int* plane, int* noiseOffs, const int frameNumber);
   void updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   void updateFrame_16_SSE4(uint16_t* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
+  void updateFrame_32_SSE2(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   template<typename T1>
   void updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   template<>
@@ -131,7 +132,7 @@ void AddGrain::updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, co
 
   // assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
-  const auto sign_mask = _mm_set1_epi8((char)0x80);
+  const auto sign_mask = _mm_set1_epi8((char)0x80); // 0x80
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x += 16) {
@@ -160,22 +161,45 @@ void AddGrain::updateFrame_16_SSE4(uint16_t* VS_RESTRICT dstp, const int width, 
 
   auto sign_mask = _mm_set1_epi16((short)0x8000);
 
-  const int max_pixel_value = 1 << bits_per_pixel;
+  const int max_pixel_value = (1 << bits_per_pixel) - 1;
   auto limit = _mm_set1_epi16(max_pixel_value);
 
   for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x += 16) {
-      auto src = _mm_load_si128(reinterpret_cast<const __m128i*>(dstp + x));
+    for (int x = 0; x < width * sizeof(uint16_t); x += 16) {
+      auto src = _mm_load_si128(reinterpret_cast<const __m128i*>((uint8_t *)dstp + x));
       auto noise = _mm_load_si128(reinterpret_cast<const __m128i*>(pNW + x)); // signed 16
       auto src_signed = _mm_add_epi16(src, sign_mask);
       auto sum = _mm_adds_epi16(noise, src_signed);
-      auto result = _mm_max_epu16(sum, limit); // for exact 16 bit it's not needed
-      _mm_store_si128(reinterpret_cast<__m128i*>(dstp + x), result);
+      sum = _mm_add_epi16(sum, sign_mask);
+      auto result = _mm_min_epu16(sum, limit); // for exact 16 bit it's not needed
+      _mm_store_si128(reinterpret_cast<__m128i*>((uint8_t*)dstp + x), result);
     }
     dstp += stride;
     pNW += nstride;
   }
 }
+
+#if defined(GCC) || defined(CLANG)
+__attribute__((__target__("sse2")))
+#endif
+void AddGrain::updateFrame_32_SSE2(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int) {
+  const float* pNW = pNF[noisePlane].data() + noiseOffs;
+  const size_t nstride = nStride[noisePlane];
+
+  // assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width * sizeof(float); x += 16) {
+      auto src = _mm_load_ps(reinterpret_cast<const float*>((uint8_t*)dstp + x));
+      auto noise = _mm_load_ps(reinterpret_cast<const float*>(pNW + x)); // signed 16
+      auto result = _mm_add_ps(noise, src);
+      _mm_store_ps(reinterpret_cast<float *>((uint8_t*)dstp + x), result);
+    }
+    dstp += stride;
+    pNW += nstride;
+  }
+}
+
 
 template<typename T1>
 void AddGrain::updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel) {
@@ -346,7 +370,10 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpY), widthY, heightY, strideY / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
+      if (sse2)
+        updateFrame_32_SSE2(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
+      else
+        updateFrame<float>(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
   if (_uvar > 0.f)
@@ -375,7 +402,10 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpU), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
+      if (sse2)
+        updateFrame_32_SSE2(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
+      else
+        updateFrame<float>(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
 
     plane = 2;
     noisePlane = (vi.IsRGB()) ? 0 : plane;
@@ -395,7 +425,10 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpV), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
-      updateFrame<float>(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
+      if (sse2)
+        updateFrame_32_SSE2(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
+      else
+        updateFrame<float>(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
   return src;
