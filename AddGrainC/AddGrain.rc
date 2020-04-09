@@ -27,8 +27,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,7,1,0
- PRODUCTVERSION 1,7,1,0
+ FILEVERSION 1,8,0,0
+ PRODUCTVERSION 1,8,0,0
  FILEFLAGSMASK 0x1fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -44,14 +44,14 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "Comments", "This sentience has tree errors."
-            VALUE "CompanyName", "Tom Barry / Foxyshadis / Firesledge / LaTo INV (forum.doom9.org)"
+            VALUE "CompanyName", "Tom Barry / Foxyshadis / Firesledge / LaTo INV (forum.doom9.org)/ HolyWu / StvG / pinterf"
             VALUE "FileDescription", "AddGrainC - improved random noise film grain generator"
-            VALUE "FileVersion", "1.7.1.0"
+            VALUE "FileVersion", "1.8.0.0"
             VALUE "LegalCopyright", "Copyright © 2003 Tom Barry"
             VALUE "LegalTrademarks", "Open Source subject to GNU GPL"
             VALUE "OriginalFilename", "AddGrainC.dll"
             VALUE "ProductName", "AddGrainC"
-            VALUE "ProductVersion", "1.7.1.0"
+            VALUE "ProductVersion", "1.8.0.0"
         END
     END
     BLOCK "VarFileInfo"
