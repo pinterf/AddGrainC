@@ -429,5 +429,6 @@ const char* __stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Li
 
   env->AddFunction("AddGrain", "c[var]f[uvar]f[hcorr]f[vcorr]f[seed]i[constant]b", Create_AddGrain, NULL);
   env->AddFunction("AddGrainC", "c[var]f[uvar]f[hcorr]f[vcorr]f[seed]i[constant]b", Create_AddGrainC, NULL);
-  return "AddGrain";
+  return "`AddGrainC' Add some correlated color gaussian noise";
+
 }
