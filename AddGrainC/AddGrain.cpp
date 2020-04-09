@@ -131,7 +131,7 @@ void AddGrain::updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, co
 
   // assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
-  const auto sign_mask = _mm_set1_epi8(0x80);
+  const auto sign_mask = _mm_set1_epi8((char)0x80);
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x += 16) {
@@ -158,7 +158,7 @@ void AddGrain::updateFrame_16_SSE4(uint16_t* VS_RESTRICT dstp, const int width, 
 
   // assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
-  auto sign_mask = _mm_set1_epi16(0x8000);
+  auto sign_mask = _mm_set1_epi16((short)0x8000);
 
   const int max_pixel_value = 1 << bits_per_pixel;
   auto limit = _mm_set1_epi16(max_pixel_value);
@@ -199,7 +199,7 @@ void AddGrain::updateFrame(T1* VS_RESTRICT dstp, const int width, const int heig
 template<>
 void AddGrain::updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int) {
   const float* pNW = pNF[noisePlane].data() + noiseOffs;
-  assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
+  //assert(noiseOffs + (nStride[noisePlane] >> 4) * (height - 1) + (stride * 16) <= nSize[noisePlane]);
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++)
@@ -408,7 +408,7 @@ AVSValue __cdecl Create_AddGrain(AVSValue args, void* user_data, IScriptEnvironm
     env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), args[1].AsFloat(1), args[2].AsFloat(0), args[3].AsFloat(0), args[4].AsFloat(0), args[5].AsInt(-1), args[6].AsBool(false), env);
+  return new AddGrain(args[0].AsClip(), args[1].AsFloatf(1), args[2].AsFloatf(0), args[3].AsFloatf(0), args[4].AsFloatf(0), args[5].AsInt(-1), args[6].AsBool(false), env);
 }
 
 AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -417,7 +417,7 @@ AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnviron
     env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), args[1].AsFloat(1), args[2].AsFloat(0), args[3].AsFloat(0), args[4].AsFloat(0), args[5].AsInt(-1), args[6].AsBool(false), env);
+  return new AddGrain(args[0].AsClip(), args[1].AsFloatf(1), args[2].AsFloatf(0), args[3].AsFloatf(0), args[4].AsFloatf(0), args[5].AsInt(-1), args[6].AsBool(false), env);
 }
 
 const AVS_Linkage* AVS_linkage;
