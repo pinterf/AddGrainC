@@ -7,8 +7,8 @@ random noise to a video clip.  This noise may optionally be horizontally
 or vertically correlated to cause streaking.
 
 
-  AddGrainC ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
-  AddGrain  ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant )
+  AddGrainC ( float var, float uvar, float hcorr, float vcorr, int seed, bool constant, bool sse2 )
+  AddGrain  ( float var, float hcorr, float vcorr, float uvar, int seed, bool constant, bool sse2 )
 
 Forum: https://forum.doom9.org/showthread.php?t=111849
 
@@ -35,6 +35,8 @@ seed (-1)
 constant (false)
   Specifies a constant grain pattern on every frame.
 
+sse2 (true)
+  debug parameter, set to false for C routines
 
 
 AddGrain alias is left to retain compatibility with existing scripts using it.
@@ -84,6 +86,7 @@ Version History
                                   Add back documentation, credits
                                   Add back SIMD optimization (SSE2, SSE4)
                                   Add back version resource
+1.8.1   2020/04/09   pinterf      Restore AddGrain's original parameter order and the sse2 parameter (compatibility)
 
 Authors
 =======
