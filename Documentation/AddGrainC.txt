@@ -87,6 +87,7 @@ Version History
                                   Add back SIMD optimization (SSE2, SSE4)
                                   Add back version resource
 1.8.1   2020/04/09   pinterf      Restore AddGrain's original parameter order and the sse2 parameter (compatibility)
+1.8.2   2020/05/20   pinterf      Fix SIMD code: 8/16/32 bits gave different look for the same given fixed seeds.
 
 Authors
 =======
