@@ -38,8 +38,11 @@
 #include <vector>
 
 #include "avisynth.h"
+
+#ifdef INTEL_INTRINSICS
 #include "emmintrin.h"
 #include "smmintrin.h" // sse4
+#endif
 
 #define VS_RESTRICT __restrict
 
@@ -61,13 +64,13 @@ class AddGrain : public GenericVideoFilter {
   bool _simd;
 
   void setRand(int* plane, int* noiseOffs, const int frameNumber);
+#ifdef INTEL_INTRINSICS
   void updateFrame_8_SSE2(uint8_t* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   void updateFrame_16_SSE4(uint16_t* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
   void updateFrame_32_SSE2(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
+#endif
   template<typename T1>
   void updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel);
-  template<>
-  void updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int);
 
 public:
   AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr, int seed, bool constant, bool simd, IScriptEnvironment* env);
@@ -77,6 +80,10 @@ public:
     return cachehints == CACHE_GET_MTMODE ? MT_MULTI_INSTANCE : 0;
   }
 };
+
+// for gcc: outside the class
+template<>
+void AddGrain::updateFrame(float* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int);
 
 static inline int64_t fastUniformRandL(int64_t* idum) noexcept {
   return *idum = 1664525LL * (*idum) + 1013904223LL;
@@ -136,7 +143,7 @@ void AddGrain::setRand(int* plane, int* noiseOffs, const int frameNumber) {
       idum = p0;
     }
     else {
-      idum = pNoiseSeeds[(_int64)seedIndex + storedFrames];
+      idum = pNoiseSeeds[(int64_t)seedIndex + storedFrames];
       if (*plane == 2) {
         // the trick to needing only 2 planes ^.~
         idum ^= p0;
@@ -153,6 +160,8 @@ void AddGrain::setRand(int* plane, int* noiseOffs, const int frameNumber) {
   assert(*noiseOffs >= 0);
   assert(*noiseOffs < nSize[*plane]); // minimal check
 }
+
+#ifdef INTEL_INTRINSICS
 
 #if defined(GCC) || defined(CLANG)
 __attribute__((__target__("sse2")))
@@ -230,7 +239,7 @@ void AddGrain::updateFrame_32_SSE2(float* VS_RESTRICT dstp, const int width, con
     pNW += nstride;
   }
 }
-
+#endif // #ifdef INTEL_INTRINSICS
 
 template<typename T1>
 void AddGrain::updateFrame(T1* VS_RESTRICT dstp, const int width, const int height, const int stride, const int noisePlane, const int noiseOffs, const int bits_per_pixel) {
@@ -291,7 +300,7 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
   }
 
   storedFrames = std::min(vi.num_frames, 256);
-  pNoiseSeeds.resize((_int64)storedFrames * planesNoise);
+  pNoiseSeeds.resize((int64_t)storedFrames * planesNoise);
   auto pns = pNoiseSeeds.begin();
 
   float nRep[] = { 2.f, 2.f };
@@ -325,7 +334,7 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
 
     for (int y = 0; y < h; y++) {
       if (vi.BitsPerComponent() != 32) {
-        auto pNW = pN[plane].begin() + (_int64)nStride[plane] * y;
+        auto pNW = pN[plane].begin() + (int64_t)nStride[plane] * y;
         float lastr = gaussianRand(mean, pvar[plane], &iset, &gset, &idum); // something to horiz smooth against
 
         for (int x = 0; x < nStride[plane]; x++) {
@@ -341,7 +350,7 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
         }
       }
       else {
-        auto pNW = pNF[plane].begin() + (_int64)nStride[plane] * y;
+        auto pNW = pNF[plane].begin() + (int64_t)nStride[plane] * y;
         float lastr = gaussianRand(mean, pvar[plane], &iset, &gset, &idum); // something to horiz smooth against
 
         for (int x = 0; x < nStride[plane]; x++) {
@@ -373,8 +382,10 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
 
   const int bits_per_pixel = vi.BitsPerComponent();
 
+#ifdef INTEL_INTRINSICS
   const bool sse2 = _simd && !!(env->GetCPUFlags() & CPUF_SSE2);
   const bool sse41 = _simd && !!(env->GetCPUFlags() & CPUF_SSE4_1);
+#endif
 
   if (_var > 0.f)
   {
@@ -389,21 +400,27 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1) {
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_8_SSE2(dstpY, widthY, heightY, strideY, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint8_t>(dstpY, widthY, heightY, strideY, noisePlane, noiseOffs, bits_per_pixel);
     }
     else if (vi.ComponentSize() == 2) {
+#ifdef INTEL_INTRINSICS
       if (sse41)
         updateFrame_16_SSE4(reinterpret_cast<uint16_t*>(dstpY), widthY, heightY, strideY / 2, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpY), widthY, heightY, strideY / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_32_SSE2(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<float>(reinterpret_cast<float*>(dstpY), widthY, heightY, strideY / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
@@ -421,21 +438,27 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1) {
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_8_SSE2(dstpU, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint8_t>(dstpU, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
     }
     else if (vi.ComponentSize() == 2) {
+#ifdef INTEL_INTRINSICS
       if (sse41)
         updateFrame_16_SSE4(reinterpret_cast<uint16_t*>(dstpU), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpU), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_32_SSE2(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<float>(reinterpret_cast<float*>(dstpU), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
 
     plane = 2;
@@ -444,21 +467,27 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
     setRand(&noisePlane, &noiseOffs, n); // seeds randomness w/ plane & frame
 
     if (vi.ComponentSize() == 1) {
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_8_SSE2(dstpV, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint8_t>(dstpV, widthUV, heightUV, strideUV, noisePlane, noiseOffs, bits_per_pixel);
     }
     else if (vi.ComponentSize() == 2) {
+#ifdef INTEL_INTRINSICS
       if (sse41)
         updateFrame_16_SSE4(reinterpret_cast<uint16_t*>(dstpV), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<uint16_t>(reinterpret_cast<uint16_t*>(dstpV), widthUV, heightUV, strideUV / 2, noisePlane, noiseOffs, bits_per_pixel);
     }
     else
+#ifdef INTEL_INTRINSICS
       if (sse2)
         updateFrame_32_SSE2(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
       else
+#endif
         updateFrame<float>(reinterpret_cast<float*>(dstpV), widthUV, heightUV, strideUV / 4, noisePlane, noiseOffs, bits_per_pixel);
   }
 
@@ -480,7 +509,11 @@ AVSValue __cdecl Create_AddGrain(AVSValue args, void* user_data, IScriptEnvironm
   const float hcorr = args[2].AsFloatf(0);
   const float vcorr = args[3].AsFloatf(0);
 
+#ifdef INTEL_INTRINSICS
   const bool sse2 = args[7].AsBool(true);
+#else
+  const bool sse2 = false;
+#endif
 
   if ((hcorr) < 0.f || (hcorr) > 1.f || (vcorr) < 0.f || (vcorr) > 1.f) {
     env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
@@ -496,7 +529,11 @@ AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnviron
   const float hcorr = args[3].AsFloatf(0);
   const float vcorr = args[4].AsFloatf(0);
 
+#ifdef INTEL_INTRINSICS
   const bool sse2 = args[7].AsBool(true);
+#else
+  const bool sse2 = false;
+#endif
 
   if ((hcorr) < 0.f || (hcorr) > 1.f || (vcorr) < 0.f || (vcorr) > 1.f) {
     env->ThrowError("AddGrainC: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
