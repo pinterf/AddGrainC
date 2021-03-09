@@ -285,7 +285,11 @@ AddGrain::AddGrain(PClip _child, float var, float uvar, float hcorr, float vcorr
   idum = _seed;
 
   int planesNoise = 1;
-  nStride[0] = (vi.width + 15) & ~15; // first plane
+  if(vi.IsRGB() && !vi.IsPlanar())
+    // packed RGB: width is GetRowSize, which is 3x (RGB24) or 4x (RGB32) as large
+    nStride[0] = (vi.width * vi.NumComponents() + 15) & ~15; // first plane
+  else
+    nStride[0] = (vi.width + 15) & ~15; // first plane
   nHeight[0] = vi.height;
   if (vi.IsY()) {
     _uvar = 0.f;
