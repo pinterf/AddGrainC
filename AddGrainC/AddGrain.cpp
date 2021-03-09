@@ -391,12 +391,16 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
   const bool sse41 = _simd && !!(env->GetCPUFlags() & CPUF_SSE4_1);
 #endif
 
+  int planes_y[4] = { PLANAR_Y, PLANAR_U, PLANAR_V, PLANAR_A };
+  int planes_r[4] = { PLANAR_G, PLANAR_B, PLANAR_R, PLANAR_A };
+  int* planes = (vi.IsPlanarRGB() || vi.IsPlanarRGBA()) ? planes_r : planes_y;
+
   if (_var > 0.f)
   {
-    const int widthY = src->GetRowSize(PLANAR_Y) / vi.ComponentSize();
-    const int heightY = src->GetHeight(PLANAR_Y);
-    const int strideY = src->GetPitch(PLANAR_Y);
-    uint8_t* dstpY = src->GetWritePtr(PLANAR_Y);
+    const int widthY = src->GetRowSize(planes[0]) / vi.ComponentSize();
+    const int heightY = src->GetHeight(planes[0]);
+    const int strideY = src->GetPitch(planes[0]);
+    uint8_t* dstpY = src->GetWritePtr(planes[0]);
 
     plane = 0;
     int noisePlane = plane;
@@ -430,11 +434,11 @@ PVideoFrame AddGrain::GetFrame(int n, IScriptEnvironment* env) {
 
   if (_uvar > 0.f)
   {
-    const int widthUV = src->GetRowSize(PLANAR_U) / vi.ComponentSize();
-    const int heightUV = src->GetHeight(PLANAR_U);
-    const int strideUV = src->GetPitch(PLANAR_U);
-    uint8_t* dstpU = src->GetWritePtr(PLANAR_U);
-    uint8_t* dstpV = src->GetWritePtr(PLANAR_V);
+    const int widthUV = src->GetRowSize(planes[1]) / vi.ComponentSize();
+    const int heightUV = src->GetHeight(planes[1]);
+    const int strideUV = src->GetPitch(planes[1]);
+    uint8_t* dstpU = src->GetWritePtr(planes[1]);
+    uint8_t* dstpV = src->GetWritePtr(planes[2]);
 
     plane = 1;
     int noisePlane = (vi.IsRGB()) ? 0 : plane;
