@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.8.2)
 # CMAKE_CXX_STANDARD to be set to C++17.
 # Visual Studio 2019 is supported from CMake 3.14.1 
 project(AddGrainC LANGUAGES CXX)
