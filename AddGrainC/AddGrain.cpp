@@ -527,7 +527,25 @@ AVSValue __cdecl Create_AddGrain(AVSValue args, void* user_data, IScriptEnvironm
     env->ThrowError("AddGrain: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
+  PClip clip = args[0].AsClip();
+  const VideoInfo& vi = clip->GetVideoInfo();
+
+  // yuy2 is autoconverted to/from YV16.
+  bool need_convert_yuy2 = vi.IsYUY2();
+
+  if (need_convert_yuy2) {
+    AVSValue new_args[1] = { clip };
+    clip = env->Invoke("ConvertToYV16", AVSValue(new_args, 1)).AsClip();
+  }
+
+  AVSValue result = new AddGrain(clip, var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
+
+  if (need_convert_yuy2) {
+    AVSValue new_args[1] = { result };
+    result = env->Invoke("ConvertToYUY2", AVSValue(new_args, 1)).AsClip();
+  }
+
+  return result;
 }
 
 AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -547,7 +565,25 @@ AVSValue __cdecl Create_AddGrainC(AVSValue args, void* user_data, IScriptEnviron
     env->ThrowError("AddGrainC: hcorr and vcorr must be between 0.0 and 1.0 (inclusive)");
   }
 
-  return new AddGrain(args[0].AsClip(), var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
+  PClip clip = args[0].AsClip();
+  const VideoInfo& vi = clip->GetVideoInfo();
+
+  // yuy2 is autoconverted to/from YV16.
+  bool need_convert_yuy2 = vi.IsYUY2();
+
+  if (need_convert_yuy2) {
+    AVSValue new_args[1] = { clip };
+    clip = env->Invoke("ConvertToYV16", AVSValue(new_args, 1)).AsClip();
+  }
+
+  AVSValue result = new AddGrain(clip, var, uvar, hcorr, vcorr, args[5].AsInt(-1), args[6].AsBool(false), sse2, env);
+
+  if (need_convert_yuy2) {
+    AVSValue new_args[1] = { result };
+    result = env->Invoke("ConvertToYUY2", AVSValue(new_args, 1)).AsClip();
+  }
+
+  return result;
 }
 
 const AVS_Linkage* AVS_linkage;
